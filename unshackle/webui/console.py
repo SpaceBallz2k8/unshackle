@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import re
 import threading
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
 from rich.console import Console
@@ -81,17 +81,18 @@ class JobQueue:
             except ValueError:
                 pass
 
-    def emit(self, event: WebEvent):
+    def emit(self, event: WebEvent | dict):
         """Called from the dl thread — thread-safe push to all async queues."""
+        payload = asdict(event) if isinstance(event, WebEvent) else event
         with self._lock:
-            if event.type in ("log", "error", "status"):
-                self._log_buffer.append(event)
+            if payload["type"] in ("log", "error", "status"):
+                self._log_buffer.append(payload)
             subs = list(self._subscribers)
 
         if self._loop and not self._loop.is_closed():
             for q in subs:
                 try:
-                    self._loop.call_soon_threadsafe(q.put_nowait, event)
+                    self._loop.call_soon_threadsafe(q.put_nowait, payload)
                 except RuntimeError:
                     pass
 

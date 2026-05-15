@@ -13,6 +13,9 @@ import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
+from unittest.mock import patch
+
+from unshackle.webui.console import WebConsole, WebProgress
 
 import aiosqlite
 
@@ -198,69 +201,45 @@ def _do_download(job_id: str, service: str, content_id: str, extra_args: list, q
     Run `unshackle dl SERVICE CONTENT_ID [extra_args]` via CliRunner.
     We capture stdout/stderr and stream lines to the JobQueue in real time.
     """
-    import io
-    import threading
+    import sys
     from click.testing import CliRunner
     from unshackle.core.__main__ import main
+    import unshackle.commands.dl as dl_mod
+    import unshackle.core.console as core_console
 
-    q.log(f"$ unshackle dl {' '.join(extra_args)} {service} {content_id}")
+    cmd_str = f"$ unshackle dl {' '.join(extra_args)} {service} {content_id}"
+    q.log(cmd_str)
 
-    # Use a pipe to get streaming output
-    r_fd, w_fd = None, None
+    # Create web-aware versions of Rich components
+    web_console = WebConsole(q)
+    web_progress = WebProgress(q)
+
+    # Patch Unshackle's internal UI components to emit to our queue instead of stdout
     try:
-        import os as _os
-        r_fd, w_fd = _os.pipe()
-        w_file = _os.fdopen(w_fd, "w", buffering=1)
-        r_file = _os.fdopen(r_fd, "r", buffering=1)
+        with patch.object(core_console, "console", web_console), \
+             patch.object(dl_mod, "console", web_console), \
+             patch.object(dl_mod, "Progress", lambda *args, **kwargs: web_progress), \
+             patch.object(dl_mod, "Live", lambda *args, **kwargs: web_progress):
+            
+            runner = CliRunner()
+            args = ["dl"] + extra_args + [service, content_id]
 
-        output_lines = []
-        read_done = threading.Event()
+            result = runner.invoke(
+                main,
+                args,
+                catch_exceptions=True,
+            )
 
-        def _reader():
-            for line in r_file:
-                line = line.rstrip()
-                if line:
-                    output_lines.append(line)
-                    q.log(line)
-            read_done.set()
+            if result.exception and not isinstance(result.exception, SystemExit):
+                import traceback as tb
+                q.error(f"Exception: {result.exception}")
+                q.error(tb.format_exc())
 
-        reader_thread = threading.Thread(target=_reader, daemon=True)
-        reader_thread.start()
-
-        runner = CliRunner()
-        args = ["dl"] + extra_args + [service, content_id]
-
-        result = runner.invoke(
-            main,
-            args,
-            catch_exceptions=True,
-        )
-
-        w_file.close()
-        read_done.wait(timeout=5)
-
-        # Also emit any output that came through CliRunner's capture
-        if result.output:
-            for line in result.output.splitlines():
-                if line.strip() and line not in output_lines:
-                    q.log(line)
-
-        if result.exception and not isinstance(result.exception, SystemExit):
-            import traceback as tb
-            q.error(f"Exception: {result.exception}")
-            q.error(tb.format_exc())
-
-        if result.exit_code == 0:
-            q.status("completed")
-        else:
-            q.status("failed")
+            if result.exit_code == 0:
+                q.status("completed")
+            else:
+                q.status("failed")
 
     except Exception as e:
         q.error(f"Runner error: {e}")
         q.status("failed")
-    finally:
-        try:
-            if w_fd and not w_file.closed:
-                w_file.close()
-        except Exception:
-            pass
