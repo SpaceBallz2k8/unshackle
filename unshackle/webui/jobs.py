@@ -224,7 +224,7 @@ def _do_download(job_id: str, service: str, content_id: str, extra_args: list, q
         reader_thread.start()
 
         runner = CliRunner()
-        args = ["dl", service, content_id] + extra_args
+        args = ["dl"] + extra_args + [service, content_id]
 
         result = runner.invoke(
             main,
