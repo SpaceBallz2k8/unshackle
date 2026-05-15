@@ -165,17 +165,16 @@ def _do_download(
     The actual download logic — runs in a thread.
     Imports unshackle internals and invokes them directly.
     """
-    import click
-    from unshackle.core.config import Config
-    from unshackle.constants import context_settings
-    from unshackle.utilities import get_binary_path
+    from unshackle.core.config import config as cfg
+    from unshackle.core.constants import context_settings
+    from unshackle.core.binaries import find as get_binary_path
 
     q.emit_log(f"Starting: {service_name} {content_id}")
 
     # Build a minimal Click context that mirrors what `unshackle dl` provides
     # We use invoke_without_command to get the root ctx with config loaded
     try:
-        from unshackle import __main__ as _main
+        from unshackle.core import __main__ as _main
         from unshackle.commands.dl import dl as DlClass
     except ImportError as e:
         q.emit_error(f"Failed to import unshackle internals: {e}")
@@ -197,7 +196,7 @@ def _do_download(
 
         # We need to patch the console BEFORE the dl command instantiates
         # Patch at the module level — unshackle uses a module-level `console`
-        import unshackle.utilities as _utils
+        import unshackle.core.utilities as _utils
         import unshackle.commands.dl as _dl_mod
 
         original_console = getattr(_dl_mod, 'console', None)
@@ -218,7 +217,7 @@ def _do_download(
             pass
 
         result = runner.invoke(
-            _main.cli,
+            _main.main,
             ["dl"] + args,
             catch_exceptions=False,
         )
