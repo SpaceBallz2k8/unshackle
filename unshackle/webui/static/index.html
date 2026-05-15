@@ -1180,7 +1180,7 @@ async function doSearch() {
     card.style.display = '';
 
     const rawTerm = document.getElementById('search-raw-term');
-    rawTerm.textContent = res.raw.join('\n');
+    rawTerm.textContent = (res.raw || []).join('\n');
 
     if (!res.results.length) {
       title.textContent = 'No results';
@@ -1233,7 +1233,7 @@ async function selectSearchResult(idx) {
     dlState.rawTitles = res.raw;
     dlState.selectedTitles = new Set(res.titles.map((_, i) => i));
 
-    document.getElementById('titles-raw-term').textContent = res.raw.join('\n');
+    document.getElementById('titles-raw-term').textContent = (res.raw || []).join('\n');
     titleEl.textContent = `${result.title}${result.year?' ('+result.year+')':''}`;
     renderTitleList();
 
@@ -1487,7 +1487,7 @@ async function loadServices() {
     // Group: git repos vs standalone
     const rows = services.map(s => {
       const isRepo = !!s.repo;
-      const fileList = s.files.join(', ');
+      const fileList = (s.files || []).join(', ');
       const repoInfo = isRepo
         ? `<div style="font-size:10px;color:var(--muted);margin-top:4px">
              <span style="color:var(--purple)">⎇ ${escHtml(s.repo.repo_name)}</span> · ${escHtml(s.repo.url)}
@@ -1524,7 +1524,7 @@ async function uploadZip(input) {
     const res = await fetch('/api/services/upload-zip', { method: 'POST', body: fd });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    toast(`Installed ${data.count} service(s): ${data.installed.join(', ')}`, 'success');
+    toast(`Installed ${data.count} service(s): ${(data.installed || []).join(', ')}`, 'success');
     closeModal('add-service-modal');
     loadServices();
     input.value = '';
@@ -1554,7 +1554,7 @@ async function cloneRepo() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
     term.textContent += `\n✓ Cloned into /services/${data.repo_name}/\n`;
-    term.textContent += `Services found: ${data.services.join(', ') || '(none detected)'}\n`;
+    term.textContent += `Services found: ${(data.services || []).join(', ') || '(none detected)'}\n`;
     term.textContent += `\n${data.message}`;
     toast(`Cloned: ${data.repo_name}`, 'success');
     loadServices();
