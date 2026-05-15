@@ -25,7 +25,12 @@ def webui(ctx: click.Context, host: str, port: int, reload: bool):
     \b
     Access at: http://<host>:<port>
     """
-    import uvicorn
+    try:
+        import uvicorn
+    except ImportError:
+        click.secho("Error: The 'uvicorn' package is required for the Web UI.", fg="red", err=True)
+        click.echo("Please add it to your project dependencies (e.g., run 'uv add uvicorn').", err=True)
+        ctx.exit(1)
 
     click.echo(f"Starting Unshackle Web UI on http://{host}:{port}")
     click.echo("Press CTRL+C to stop.")

@@ -68,6 +68,8 @@ dependencies = [
     "language-data>=1.4.0",
     "wasmtime>=41.0.0",
     "animeapi-py>=0.6.0",
+    "fastapi",
+    "uvicorn"
 ]
 
 [project.urls]
