@@ -65,7 +65,7 @@ def _make_context(service_name: str, content_id: str):
     Mirrors what unshackle's dl command builds before instantiating a service.
     """
     import click
-    from unshackle.config import Config
+    from unshackle.core.config import Config
 
     # Load config the same way unshackle does
     cfg = Config.load()

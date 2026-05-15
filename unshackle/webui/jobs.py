@@ -166,7 +166,7 @@ def _do_download(
     Imports unshackle internals and invokes them directly.
     """
     import click
-    from unshackle.config import Config
+    from unshackle.core.config import Config
     from unshackle.constants import context_settings
     from unshackle.utilities import get_binary_path
 
