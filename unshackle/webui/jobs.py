@@ -1,32 +1,93 @@
 """
 webui/jobs.py
 
-Manages download jobs. Calls unshackle's dl command internals directly
-in a thread pool — no subprocess, no PTY, no output parsing.
-
-Each job gets its own JobQueue (the event bus) and WebConsole (Rich shim).
+Runs unshackle dl via CliRunner in a thread pool.
+Uses the real unshackle CLI entry point so all internals (CDM, vaults, etc.)
+work exactly as they do on the command line.
 """
 from __future__ import annotations
 
 import asyncio
-import threading
+import logging
+import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import aiosqlite
 
-from unshackle.webui.console import JobQueue, WebConsole, WebProgress
+log = logging.getLogger("webui.jobs")
 
-DB_PATH_ENV = "DATABASE_URL"
-import os
-DB_PATH = os.environ.get(DB_PATH_ENV, "/data/unshackle.db")
+DB_PATH = os.environ.get("DATABASE_URL", "/data/unshackle.db")
 
-# Thread pool for running blocking dl work
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="unshackle-dl")
+_queues: dict[str, "JobQueue"] = {}
+_running: dict[str, bool] = {}
+_cancel_flags: dict[str, bool] = {}
 
-# In-memory map of job_id -> JobQueue (for live SSE streaming)
-_queues: dict[str, JobQueue] = {}
+
+# ── Simple in-process event bus ────────────────────────────────────────────────
+
+class JobQueue:
+    def __init__(self):
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._subscribers: list[asyncio.Queue] = []
+        self._buffer: list[dict] = []
+        import threading
+        self._lock = threading.Lock()
+
+    def set_loop(self, loop):
+        self._loop = loop
+
+    def subscribe(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue()
+        with self._lock:
+            self._subscribers.append(q)
+            for evt in self._buffer:
+                q.put_nowait(evt)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue):
+        with self._lock:
+            try:
+                self._subscribers.remove(q)
+            except ValueError:
+                pass
+
+    def _emit(self, evt: dict):
+        with self._lock:
+            if evt.get("type") in ("log", "error", "status"):
+                self._buffer.append(evt)
+            subs = list(self._subscribers)
+        if self._loop and not self._loop.is_closed():
+            for q in subs:
+                try:
+                    self._loop.call_soon_threadsafe(q.put_nowait, evt)
+                except RuntimeError:
+                    pass
+
+    def log(self, msg: str):
+        self._emit({"type": "log", "message": msg})
+
+    def error(self, msg: str):
+        self._emit({"type": "error", "message": msg})
+
+    def status(self, s: str):
+        self._emit({"type": "status", "message": s})
+
+    def progress(self, task_id: str, description: str, completed: float, total: float, speed: str = ""):
+        self._emit({
+            "type": "progress",
+            "message": description,
+            "task_id": task_id,
+            "completed": completed,
+            "total": total,
+            "speed": speed,
+        })
+
+
+def get_queue(job_id: str) -> Optional[JobQueue]:
+    return _queues.get(job_id)
 
 
 # ── Database helpers ───────────────────────────────────────────────────────────
@@ -35,7 +96,9 @@ async def _db_set(job_id: str, **fields):
     sets = ", ".join(f"{k} = ?" for k in fields)
     vals = list(fields.values()) + [job_id]
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(f"UPDATE jobs SET {sets}, updated_at = datetime('now') WHERE id = ?", vals)
+        await db.execute(
+            f"UPDATE jobs SET {sets}, updated_at = datetime('now') WHERE id = ?", vals
+        )
         await db.commit()
 
 
@@ -50,195 +113,150 @@ async def _db_append_log(job_id: str, line: str):
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-def get_queue(job_id: str) -> Optional[JobQueue]:
-    return _queues.get(job_id)
-
-
-async def create_job(
-    service: str,
-    content_id: str,
-    title: str = "",
-    extra_args: Optional[list] = None,
-) -> str:
+async def create_job(service: str, content_id: str, title: str = "", extra_args: Optional[list] = None) -> str:
     job_id = str(uuid.uuid4())
-
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "INSERT INTO jobs (id, service, content_id, title, status) VALUES (?, ?, ?, ?, 'queued')",
             (job_id, service, content_id, title or content_id),
         )
         await db.commit()
-
     asyncio.create_task(_run_job(job_id, service, content_id, extra_args or []))
     return job_id
 
 
+def cancel_job(job_id: str):
+    _cancel_flags[job_id] = True
+
+
 async def _run_job(job_id: str, service: str, content_id: str, extra_args: list):
     loop = asyncio.get_event_loop()
-
-    # Create the event bus for this job
     q = JobQueue()
     q.set_loop(loop)
     _queues[job_id] = q
 
     await _db_set(job_id, status="running")
-    q.emit_status("running")
+    q.status("running")
 
-    # Drain the queue and write to DB + SSE
-    async def _drain():
+    # Persist log lines to DB as they arrive
+    log_sub = q.subscribe()
+    persist_done = asyncio.Event()
+
+    async def _persist():
         while True:
             try:
-                evt = await asyncio.wait_for(q.subscribe().__class__(), timeout=0.1)
-            except Exception:
-                break
-
-    # Subscribe to the queue so we can persist log lines to DB
-    log_q = q.subscribe()
-
-    async def _persist_loop():
-        """Write log/error events to DB as they arrive."""
-        while True:
-            try:
-                evt = await asyncio.wait_for(log_q.get(), timeout=1.0)
-                if evt.type in ("log", "error"):
-                    await _db_append_log(job_id, evt.message)
-                elif evt.type == "status" and evt.message not in ("queued", "running"):
+                evt = await asyncio.wait_for(log_sub.get(), timeout=2.0)
+                if evt["type"] in ("log", "error"):
+                    await _db_append_log(job_id, evt["message"])
+                if evt["type"] == "status" and evt["message"] not in ("queued", "running"):
                     break
             except asyncio.TimeoutError:
-                # Check if job thread is done
                 if not _running.get(job_id):
                     break
+        persist_done.set()
 
-    persist_task = asyncio.create_task(_persist_loop())
+    persist_task = asyncio.create_task(_persist())
 
-    # Run the blocking dl work in a thread
-    def _run_in_thread():
+    def _thread():
         try:
-            _do_download(job_id, service, content_id, extra_args, q, loop)
+            _do_download(job_id, service, content_id, extra_args, q)
         except Exception as e:
-            q.emit_error(f"Fatal error: {e}")
-            q.emit_status("failed")
+            q.error(f"Fatal: {e}")
+            q.status("failed")
         finally:
             _running.pop(job_id, None)
 
     _running[job_id] = True
-    loop.run_in_executor(_executor, _run_in_thread)
+    loop.run_in_executor(_executor, _thread)
 
-    # Wait for the status to resolve
-    status_q = q.subscribe()
-    final_status = "failed"
+    # Wait for completion signal
+    status_sub = q.subscribe()
+    final = "failed"
     while True:
         try:
-            evt = await asyncio.wait_for(status_q.get(), timeout=300.0)
-            if evt.type == "status" and evt.message not in ("queued", "running"):
-                final_status = evt.message
+            evt = await asyncio.wait_for(status_sub.get(), timeout=600.0)
+            if evt["type"] == "status" and evt["message"] not in ("queued", "running"):
+                final = evt["message"]
                 break
         except asyncio.TimeoutError:
             if not _running.get(job_id):
                 break
 
-    await persist_task
-    await _db_set(job_id, status=final_status)
-    q.unsubscribe(status_q)
-    q.unsubscribe(log_q)
+    await persist_done
+    await _db_set(job_id, status=final)
+    q.unsubscribe(status_sub)
+    q.unsubscribe(log_sub)
     _queues.pop(job_id, None)
 
 
-_running: dict[str, bool] = {}
-_cancel_flags: dict[str, bool] = {}
-
-
-def cancel_job(job_id: str):
-    """Signal a running job to stop (best-effort)."""
-    _cancel_flags[job_id] = True
-
-
-def _do_download(
-    job_id: str,
-    service_name: str,
-    content_id: str,
-    extra_args: list,
-    q: JobQueue,
-    loop: asyncio.AbstractEventLoop,
-):
+def _do_download(job_id: str, service: str, content_id: str, extra_args: list, q: JobQueue):
     """
-    The actual download logic — runs in a thread.
-    Imports unshackle internals and invokes them directly.
+    Run `unshackle dl SERVICE CONTENT_ID [extra_args]` via CliRunner.
+    We capture stdout/stderr and stream lines to the JobQueue in real time.
     """
-    from unshackle.core.config import config as cfg
-    from unshackle.core.constants import context_settings
-    from unshackle.core.binaries import find as get_binary_path
+    import io
+    import threading
+    from click.testing import CliRunner
+    from unshackle.core.__main__ import main
 
-    q.emit_log(f"Starting: {service_name} {content_id}")
+    q.log(f"$ unshackle dl {service} {content_id} {' '.join(extra_args)}")
 
-    # Build a minimal Click context that mirrors what `unshackle dl` provides
-    # We use invoke_without_command to get the root ctx with config loaded
+    # Use a pipe to get streaming output
+    r_fd, w_fd = None, None
     try:
-        from unshackle.core import __main__ as _main
-        from unshackle.commands.dl import dl as DlClass
-    except ImportError as e:
-        q.emit_error(f"Failed to import unshackle internals: {e}")
-        q.emit_status("failed")
-        return
+        import os as _os
+        r_fd, w_fd = _os.pipe()
+        w_file = _os.fdopen(w_fd, "w", buffering=1)
+        r_file = _os.fdopen(r_fd, "r", buffering=1)
 
-    # Build args list: unshackle dl SERVICE CONTENT_ID [extra_args]
-    # We monkey-patch the console on the context so all output goes to our queue
-    args = [service_name, content_id] + extra_args
+        output_lines = []
+        read_done = threading.Event()
 
-    try:
-        # Create a fake context that the dl command expects
-        # The cleanest way: use Click's standalone_mode=False to get the object back
-        web_console = WebConsole(q)
+        def _reader():
+            for line in r_file:
+                line = line.rstrip()
+                if line:
+                    output_lines.append(line)
+                    q.log(line)
+            read_done.set()
 
-        # Invoke via Click in standalone mode so exceptions propagate cleanly
-        from click.testing import CliRunner
-        runner = CliRunner(mix_stderr=False)
+        reader_thread = threading.Thread(target=_reader, daemon=True)
+        reader_thread.start()
 
-        # We need to patch the console BEFORE the dl command instantiates
-        # Patch at the module level — unshackle uses a module-level `console`
-        import unshackle.core.console as _console_mod
-
-        original_console = _console_mod.console
-        _console_mod.console = web_console
-
-        # Also patch rich.progress.Progress so download bars come to us
-        import unshackle.commands.dl as _dl_mod2
-        original_progress_cls = None
-        try:
-            import rich.progress as _rp
-            original_progress_cls = _rp.Progress
-            # Create a factory that returns WebProgress bound to our queue
-            class _WebProgressFactory:
-                def __new__(cls, *a, **kw):
-                    return WebProgress(q)
-            _rp.Progress = _WebProgressFactory
-        except Exception:
-            pass
+        runner = CliRunner(mix_stderr=True)
+        args = ["dl", service, content_id] + extra_args
 
         result = runner.invoke(
-            _main.main,
-            ["dl"] + args,
-            catch_exceptions=False,
+            main,
+            args,
+            catch_exceptions=True,
         )
 
-        # Restore patches
-        if original_console is not None:
-            _console_mod.console = original_console
-        if original_progress_cls is not None:
-            _rp.Progress = original_progress_cls
+        w_file.close()
+        read_done.wait(timeout=5)
 
+        # Also emit any output that came through CliRunner's capture
         if result.output:
             for line in result.output.splitlines():
-                if line.strip():
-                    q.emit_log(line)
+                if line.strip() and line not in output_lines:
+                    q.log(line)
+
+        if result.exception and not isinstance(result.exception, SystemExit):
+            import traceback as tb
+            q.error(f"Exception: {result.exception}")
+            q.error(tb.format_exc())
 
         if result.exit_code == 0:
-            q.emit_status("completed")
+            q.status("completed")
         else:
-            if result.exception:
-                q.emit_error(str(result.exception))
-            q.emit_status("failed")
+            q.status("failed")
 
     except Exception as e:
-        q.emit_error(f"Error: {e}")
-        q.emit_status("failed")
+        q.error(f"Runner error: {e}")
+        q.status("failed")
+    finally:
+        try:
+            if w_fd and not w_file.closed:
+                w_file.close()
+        except Exception:
+            pass

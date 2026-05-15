@@ -1,134 +1,183 @@
 """
 webui/search.py
 
-Calls unshackle's search and list-titles internals directly.
-No subprocess. No output parsing.
+Calls unshackle v4 service internals directly for search and list-titles.
+Uses the real Services loader, ContextData, and dl auth helpers.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+import yaml
 from typing import Optional
 
-
-def _load_service_class(service_name: str):
-    """
-    Load a service class by name from the configured services directories.
-    """
-    from unshackle.core.services import Services
-    tag = Services.get_tag(service_name)
-    try:
-        return Services.load(tag)
-    except KeyError:
-        raise ValueError(f"Service '{service_name}' not found")
+log = logging.getLogger("webui.search")
 
 
-def _make_context(service_name: str, content_id: str):
-    """
-    Create a minimal Click context that service __init__ expects.
-    Mirrors what unshackle's dl command builds before instantiating a service.
-    """
+def _build_context(service_tag: str, title_id: str):
+    """Build a minimal Click context that Service.__init__ expects."""
     import click
-    from unshackle.core.config import config as cfg
+    from unshackle.core.config import config
     from unshackle.core.utils.click_types import ContextData
+    from unshackle.core.utils.collections import merge_dict
+    from unshackle.core.services import Services
 
-    ctx = click.Context(click.Command(service_name))
-    ctx.obj = ContextData(
-        config=cfg,
+    # Load service config (same as search/dl commands do)
+    service_config_path = Services.get_path(service_tag) / config.filenames.config
+    if service_config_path.exists():
+        service_config = yaml.safe_load(service_config_path.read_text(encoding="utf8")) or {}
+    else:
+        service_config = {}
+    merge_dict(config.services.get(service_tag), service_config)
+
+    ctx_data = ContextData(
+        config=service_config,
         cdm=None,
         proxy_providers=[],
-        profile=None
+        profile=None,
     )
-    return ctx
+
+    # Build a parent context that mirrors what `dl` provides
+    # Service.__init__ reads ctx.parent.params for vcodec, range_, proxy etc.
+    parent_cmd = click.Command("dl")
+    parent_ctx = click.Context(parent_cmd)
+    parent_ctx.params = {
+        "proxy": None,
+        "no_proxy": False,
+        "proxy_query": None,
+        "proxy_provider": None,
+        "vcodec": [],
+        "range_": [],
+        "best_available": False,
+        "no_cache": False,
+        "reset_cache": False,
+    }
+    parent_ctx.obj = ctx_data
+
+    # Child context for the service subcommand
+    child_cmd = click.Command(service_tag)
+    child_ctx = click.Context(child_cmd, parent=parent_ctx, info_name=service_tag)
+    child_ctx.params = {"title": title_id}
+    child_ctx.obj = ctx_data
+
+    return child_ctx
 
 
-async def search_service(service_name: str, query: str) -> list[dict]:
+def _instantiate_service(service_tag: str, title_id: str):
+    """Load and instantiate a service class, with auth."""
+    from unshackle.core.services import Services
+    from unshackle.commands.dl import dl
+
+    service_cls = Services.load(service_tag)
+    ctx = _build_context(service_tag, title_id)
+
+    # Instantiate — Service.__init__ does geofence check etc.
+    instance = service_cls(ctx)
+
+    # Authenticate (load cookies + credentials from config)
+    cookies = dl.get_cookie_jar(service_tag, None)
+    credential = dl.get_credentials(service_tag, None)
+    instance.authenticate(cookies, credential)
+
+    return instance
+
+
+async def search_service(service_tag: str, query: str) -> list[dict]:
     """
-    Instantiate the service with the query as the title, call .search(),
-    return a list of result dicts.
+    Instantiate service, call .search(), return list of result dicts.
+    Runs in executor to avoid blocking the event loop.
     """
-    import asyncio
-
     def _run():
-        try:
-            cls = _load_service_class(service_name)
-            ctx = _make_context(service_name, query)
-            instance = cls.__new__(cls)
-            # Minimal init — just enough to call search()
-            # We call the parent Service.__init__ manually
-            from unshackle.core.service import Service
-            Service.__init__(instance, ctx)
-            instance.title = query
-
-            results = []
-            for r in instance.search():
-                results.append({
-                    "id": r.id_,
-                    "title": r.title,
-                    "description": getattr(r, "description", ""),
-                    "label": getattr(r, "label", ""),
-                    "url": getattr(r, "url", ""),
-                    "year": getattr(r, "year", ""),
-                })
-            return results
-        except Exception as e:
-            raise RuntimeError(f"Search failed: {e}") from e
+        from unshackle.core.services import Services
+        tag = Services.get_tag(service_tag)
+        instance = _instantiate_service(tag, query)
+        results = []
+        for r in instance.search():
+            results.append({
+                "id": str(r.id),
+                "title": r.title,
+                "description": r.description or "",
+                "label": r.label or "",
+                "url": r.url or "",
+                "year": "",
+            })
+        return results
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _run)
 
 
-async def list_titles(service_name: str, content_id: str) -> list[dict]:
+async def list_titles(service_tag: str, content_id: str) -> list[dict]:
     """
-    Instantiate the service with the content_id, call .get_titles(),
-    return structured episode/movie list.
+    Instantiate service, call .get_titles(), return structured list.
     """
-    import asyncio
-
     def _run():
-        try:
-            cls = _load_service_class(service_name)
-            ctx = _make_context(service_name, content_id)
-            instance = cls.__new__(cls)
-            from unshackle.core.service import Service
-            Service.__init__(instance, ctx)
-            instance.title = content_id
+        from unshackle.core.services import Services
+        from unshackle.core.titles.episode import Episode, Series
+        from unshackle.core.titles.movie import Movie, Movies
+        from unshackle.core.titles.song import Song, Album
 
-            from unshackle.core.titles import Episode, Movie, Movies, Series
+        tag = Services.get_tag(service_tag)
+        instance = _instantiate_service(tag, content_id)
+        titles_obj = instance.get_titles()
 
-            titles_obj = instance.get_titles()
-            results = []
+        results = []
 
-            if isinstance(titles_obj, Series):
-                items = list(titles_obj)
-            elif isinstance(titles_obj, Movies):
-                items = list(titles_obj)
+        if isinstance(titles_obj, (Series, Movies, Album)):
+            items = list(titles_obj)
+        else:
+            items = [titles_obj] if titles_obj else []
+
+        for i, t in enumerate(items, 1):
+            if isinstance(t, Episode):
+                try:
+                    season = int(t.season) if t.season else 0
+                    number = int(t.number) if t.number else 0
+                    ep_id = f"S{season:02d}E{number:02d}"
+                except (TypeError, ValueError):
+                    ep_id = f"{t.season or 0}x{t.number or 0}"
+
+                results.append({
+                    "index": i,
+                    "type": "episode",
+                    "episode_id": ep_id,
+                    "title": t.name or t.title or "",
+                    "show_title": t.title or "",
+                    "season": t.season,
+                    "number": t.number,
+                    "id": str(t.id),
+                    "service_data": str(t.id),
+                })
+            elif isinstance(t, Movie):
+                results.append({
+                    "index": i,
+                    "type": "movie",
+                    "episode_id": "",
+                    "title": t.name or str(t.id),
+                    "year": str(t.year) if t.year else "",
+                    "id": str(t.id),
+                    "service_data": str(t.id),
+                })
+            elif isinstance(t, Song):
+                results.append({
+                    "index": i,
+                    "type": "song",
+                    "episode_id": "",
+                    "title": getattr(t, "name", str(t.id)),
+                    "id": str(t.id),
+                    "service_data": str(t.id),
+                })
             else:
-                items = [titles_obj] if titles_obj else []
+                results.append({
+                    "index": i,
+                    "type": "unknown",
+                    "episode_id": "",
+                    "title": str(t),
+                    "id": str(getattr(t, "id", i)),
+                    "service_data": str(getattr(t, "id", i)),
+                })
 
-            for i, t in enumerate(items, 1):
-                if isinstance(t, Episode):
-                    results.append({
-                        "index": i,
-                        "type": "episode",
-                        "episode_id": f"S{t.season:02d}E{t.number:02d}" if t.season and t.number else "",
-                        "title": t.title or "",
-                        "season": t.season,
-                        "number": t.number,
-                        "id": t.id,
-                        "service_data": str(t.id),
-                    })
-                elif isinstance(t, Movie):
-                    results.append({
-                        "index": i,
-                        "type": "movie",
-                        "episode_id": "",
-                        "title": t.title or str(t.id),
-                        "year": getattr(t, "year", ""),
-                        "id": t.id,
-                        "service_data": str(t.id),
-                    })
-            return results
-        except Exception as e:
-            raise RuntimeError(f"list_titles failed: {e}") from e
+        return results
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _run)

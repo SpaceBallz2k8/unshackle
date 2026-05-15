@@ -258,16 +258,25 @@ async def list_titles(req: ListTitlesRequest):
 
 @app.get("/api/services")
 async def list_services():
-    from unshackle.webui import services_manager as svc_mgr
-    services = svc_mgr.scan_services()
-    repos = await svc_mgr.list_repos()
-    repo_map = {}
-    for r in repos:
-        for svc in json.loads(r.get("services", "[]")):
-            repo_map[svc] = r
-    for s in services:
-        if s["name"] in repo_map:
-            s["repo"] = repo_map[s["name"]]
+    # Use v4's Services loader which reads from config.directories.services
+    from unshackle.core.services import Services
+    tags = Services.get_tags()
+    # Also check for repo tracking
+    try:
+        from unshackle.webui import services_manager as svc_mgr
+        repos = await svc_mgr.list_repos()
+        repo_map = {}
+        for r in repos:
+            for svc in json.loads(r.get("services", "[]")):
+                repo_map[svc] = r
+    except Exception:
+        repo_map = {}
+    services = []
+    for tag in sorted(tags):
+        entry = {"name": tag, "type": "folder", "files": ["__init__.py"]}
+        if tag in repo_map:
+            entry["repo"] = repo_map[tag]
+        services.append(entry)
     return {"services": services}
 
 
