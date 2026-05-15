@@ -1,0 +1,12 @@
+# Add these dependencies to the [project.dependencies] section in pyproject.toml:
+
+# WebUI dependencies
+"fastapi>=0.115.0",
+"uvicorn[standard]>=0.30.0",
+"aiosqlite>=0.20.0",
+"aiofiles>=23.2.0",
+"python-multipart>=0.0.9",
+
+# Add this to [project.scripts]:
+# unshackle = "unshackle.__main__:main"   ← already exists, just showing for reference
+

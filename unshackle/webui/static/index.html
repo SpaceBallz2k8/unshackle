@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Unshackle UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0a0a;
+    --bg2:       #111111;
+    --bg3:       #181818;
+    --border:    #252525;
+    --border2:   #333;
+    --text:      #e8e8e8;
+    --muted:     #666;
+    --accent:    #e8ff47;
+    --accent2:   #ff6b35;
+    --green:     #4ade80;
+    --red:       #f87171;
+    --blue:      #60a5fa;
+    --purple:    #c084fc;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Syne', sans-serif;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); overflow: hidden; }
+
+  /* ── Layout ── */
+  .shell { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  .logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+  .logo-text {
+    font-family: var(--sans);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+
+  nav { flex: 1; padding: 12px 0; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: color 0.15s, background 0.15s;
+    border-left: 2px solid transparent;
+    user-select: none;
+  }
+  .nav-item:hover { color: var(--text); background: var(--bg3); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,255,71,0.04); }
+  .nav-icon { width: 16px; text-align: center; }
+
+  .sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Main ── */
+  .main { display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar {
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .page-title { font-family: var(--sans); font-size: 16px; font-weight: 600; color: var(--text); }
+  .topbar-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+  .content { flex: 1; overflow-y: auto; padding: 28px; }
+  .content::-webkit-scrollbar { width: 4px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Pages */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Forms ── */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  input, select, textarea {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 100px; }
+  select option { background: var(--bg3); }
+
+  /* ── Buttons ── */
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #d4eb3c; transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+  .btn-danger:hover { background: rgba(248,113,113,0.1); }
+  .btn-sm { padding: 6px 12px; font-size: 11px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .badge-queued   { background: rgba(96,165,250,0.15);  color: var(--blue);   }
+  .badge-running  { background: rgba(232,255,71,0.15);  color: var(--accent); }
+  .badge-completed{ background: rgba(74,222,128,0.15);  color: var(--green);  }
+  .badge-failed   { background: rgba(248,113,113,0.15); color: var(--red);    }
+  .badge-cancelled{ background: rgba(102,102,102,0.15); color: var(--muted);  }
+
+  /* ── Job list ── */
+  .job-list { display: flex; flex-direction: column; gap: 8px; }
+  .job-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 16px;
+    transition: border-color 0.15s;
+  }
+  .job-item:hover { border-color: var(--border2); }
+  .job-item.running { border-left: 2px solid var(--accent); }
+  .job-item.completed { border-left: 2px solid var(--green); }
+  .job-item.failed { border-left: 2px solid var(--red); }
+
+  .job-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job-meta { font-size: 11px; color: var(--muted); }
+  .job-service-tag {
+    display: inline-block;
+    background: rgba(192,132,252,0.1);
+    color: var(--purple);
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    margin-right: 6px;
+    font-weight: 700;
+  }
+
+  /* ── Log terminal ── */
+  .terminal {
+    background: #050505;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    height: 320px;
+    overflow-y: auto;
+    color: #a0a0a0;
+    font-family: var(--mono);
+  }
+  .terminal::-webkit-scrollbar { width: 4px; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--border2); }
+  .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-line.error { color: var(--red); }
+  .log-line.success { color: var(--green); }
+  .log-line.info { color: var(--blue); }
+  .log-line.cmd { color: var(--accent); }
+  .log-line.progress { color: #60a5fa; font-style: normal; }
+  .log-line.progress .prog-bar { color: var(--accent); }
+  .progress-line-active { color: var(--blue); border-left: 2px solid var(--accent); padding-left: 6px; }
+
+  /* ── Dashboard stats ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .stat-value { font-family: var(--sans); font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.green  { color: var(--green);  }
+  .stat-value.red    { color: var(--red);    }
+
+  /* ── Services ── */
+  .services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .service-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .service-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: var(--accent); }
+  .service-status { font-size: 10px; color: var(--green); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── Credentials ── */
+  .cred-list { display: flex; flex-direction: column; gap: 8px; }
+  .cred-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .cred-type-badge {
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .cred-type-cookies     { background: rgba(255,107,53,0.15); color: var(--accent2); }
+  .cred-type-credentials { background: rgba(96,165,250,0.15); color: var(--blue); }
+
+  /* ── Upload zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border2);
+    border-radius: 4px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(232,255,71,0.03);
+    color: var(--text);
+  }
+  .upload-icon { font-size: 32px; margin-bottom: 8px; }
+
+  /* ── Config editor ── */
+  .config-editor {
+    background: #050505;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #a0ffa0;
+    min-height: 400px;
+    resize: vertical;
+    width: 100%;
+    line-height: 1.7;
+  }
+
+  /* ── Toasts ── */
+  #toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+  }
+  .toast {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--text);
+    max-width: 320px;
+    animation: slideIn 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.error   { border-left: 3px solid var(--red);   }
+  .toast.info    { border-left: 3px solid var(--blue);  }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 28px;
+    width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-title { font-family: var(--sans); font-size: 16px; font-weight: 700; margin-bottom: 20px; color: var(--text); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ── Empty states ── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+
+  /* ── Downloads file list ── */
+  .tree-node { margin-left: 20px; }
+  .tree-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    margin-bottom: 2px;
+    border-radius: 2px;
+    font-size: 12px;
+    transition: border-color 0.15s;
+  }
+  .tree-item:hover { border-color: var(--border2); }
+  .tree-item.folder { cursor: pointer; font-weight: 600; background: rgba(255,255,255,0.02); }
+  .tree-icon { color: var(--muted); width: 16px; text-align: center; }
+  .tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; }
+  .tree-item:hover .tree-actions { opacity: 1; }
+  .tree-size { font-size: 10px; color: var(--muted); margin-right: 8px; }
+  .tree-toggle { 
+    width: 12px; 
+    transition: transform 0.2s; 
+    display: inline-block; 
+    text-align: center;
+    color: var(--accent);
+  }
+  .tree-node.collapsed { display: none; }
+  .expanded .tree-toggle { transform: rotate(90deg); }
+
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .section-title { font-family: var(--sans); font-size: 18px; font-weight: 700; }
+
+  /* scrollable terminal in modal */
+  .log-modal-term { height: 450px; }
+
+  /* spinning animation for running */
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+
+  /* ── Step flow ── */
+  .step-pill {
+    padding: 7px 16px;
+    border-radius: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: var(--bg3);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    cursor: default;
+    user-select: none;
+  }
+  .step-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .step-pill.done   { background: rgba(74,222,128,0.1); color: var(--green); border-color: rgba(74,222,128,0.3); }
+  .step-arrow { color: var(--border2); font-size: 18px; padding: 0 4px; }
+
+  /* ── Result cards ── */
+  .result-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.15s, background 0.15s;
+    margin-bottom: 6px;
+  }
+  .result-item:hover { border-color: var(--accent); background: rgba(232,255,71,0.03); }
+  .result-num { font-size: 11px; color: var(--muted); min-width: 24px; }
+  .result-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .result-year  { font-size: 11px; color: var(--muted); }
+  .result-id    { font-size: 11px; color: var(--purple); margin-left: auto; font-family: var(--mono); }
+
+  /* ── Episode checkboxes ── */
+  .ep-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.1s;
+    margin-bottom: 3px;
+  }
+  .ep-item:hover { background: var(--bg3); }
+  .ep-item input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+  .ep-id    { font-size: 11px; color: var(--purple); min-width: 70px; font-weight: 700; }
+  .ep-title { font-size: 13px; color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-text">unshackle</div>
+      <div class="logo-sub">web interface</div>
+    </div>
+    <nav>
+      <div class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">◈</span> Dashboard
+      </div>
+      <div class="nav-item" data-page="download">
+        <span class="nav-icon">⬇</span> Download
+      </div>
+      <div class="nav-item" data-page="jobs">
+        <span class="nav-icon">≡</span> Jobs
+      </div>
+      <div class="nav-item" data-page="services">
+        <span class="nav-icon">⬡</span> Services
+      </div>
+      <div class="nav-item" data-page="credentials">
+        <span class="nav-icon">🔑</span> Credentials
+      </div>
+      <div class="nav-item" data-page="config">
+        <span class="nav-icon">⚙</span> Config
+      </div>
+      <div class="nav-item" data-page="wvds">
+        <span class="nav-icon">🔐</span> WVDs
+      </div>
+      <div class="nav-item" data-page="files">
+        <span class="nav-icon">📁</span> Downloads
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="status-dot"></span>RUNNING
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <span class="page-title" id="page-title">Dashboard</span>
+      <div class="topbar-right">
+        <span id="topbar-meta" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="page active" id="page-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Jobs</div>
+            <div class="stat-value" id="stat-total">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Running</div>
+            <div class="stat-value accent" id="stat-running">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value green" id="stat-completed">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Failed</div>
+            <div class="stat-value red" id="stat-failed">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Recent Activity</div>
+          <div class="job-list" id="dashboard-jobs">
+            <div class="empty"><div class="empty-icon">◎</div>No jobs yet</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DOWNLOAD ── -->
+      <div class="page" id="page-download">
+
+        <!-- Step indicator -->
+        <div style="display:flex;align-items:center;gap:0;margin-bottom:24px">
+          <div class="step-pill active" id="step-pill-1">1 Search</div>
+          <div class="step-arrow">›</div>
+          <div class="step-pill" id="step-pill-2">2 Select Title</div>
+          <div class="step-arrow">›</div>
+          <div class="step-pill" id="step-pill-3">3 Pick Episodes</div>
+          <div class="step-arrow">›</div>
+          <div class="step-pill" id="step-pill-4">4 Download</div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="resetDownloadFlow()">↺ Reset</button>
+            <button class="btn btn-ghost btn-sm" onclick="showDirectDownload()">⌨ Direct ID</button>
+          </div>
+        </div>
+
+        <!-- Step 1: Search -->
+        <div id="dl-step-1">
+          <div class="card">
+            <div class="card-title">Search a Service</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Service</label>
+                <select id="dl-service">
+                  <option value="">Select a service...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Search Term</label>
+                <div style="display:flex;gap:8px">
+                  <input type="text" id="dl-search-query" placeholder="e.g. Breaking Bad" onkeydown="if(event.key==='Enter')doSearch()" style="flex:1"/>
+                  <button class="btn btn-primary" onclick="doSearch()" id="search-btn">Search</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="search-results-card" style="display:none">
+            <div class="card">
+              <div class="card-title" id="search-results-title">Results</div>
+              <div id="search-results-list"></div>
+            </div>
+            <!-- Raw output toggle -->
+            <div style="margin-top:8px">
+              <button class="btn btn-ghost btn-sm" onclick="toggleRaw('search-raw-term')">Show raw output</button>
+              <div class="terminal" id="search-raw-term" style="display:none;margin-top:8px;height:180px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Episode/title list -->
+        <div id="dl-step-2" style="display:none">
+          <div class="card">
+            <div class="card-title" id="titles-card-title">Available Titles</div>
+            <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" onclick="selectAllEpisodes()">Select All</button>
+              <button class="btn btn-ghost btn-sm" onclick="selectNoneEpisodes()">Select None</button>
+              <button class="btn btn-ghost btn-sm" onclick="invertEpisodeSelection()">Invert</button>
+              <span id="selection-count" style="align-self:center;font-size:11px;color:var(--muted)"></span>
+            </div>
+            <div id="titles-list"></div>
+            <div style="margin-top:8px">
+              <button class="btn btn-ghost btn-sm" onclick="toggleRaw('titles-raw-term')">Show raw output</button>
+              <div class="terminal" id="titles-raw-term" style="display:none;margin-top:8px;height:180px"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:4px">
+            <button class="btn btn-ghost btn-sm" onclick="goToStep(1)">‹ Back</button>
+            <button class="btn btn-primary" onclick="goToStep(3)" id="proceed-btn">Download Selected →</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Confirm + extra args + live output -->
+        <div id="dl-step-3" style="display:none">
+          <div class="card">
+            <div class="card-title">Confirm Download</div>
+            <div id="confirm-summary" style="margin-bottom:16px;font-size:13px;line-height:1.8;color:var(--muted)"></div>
+            <div class="form-group">
+              <label>Extra CLI args (optional)</label>
+              <input type="text" id="dl-args" placeholder="e.g. -q 1080p --audio-only" />
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn btn-ghost btn-sm" onclick="goToStep(2)">‹ Back</button>
+              <button class="btn btn-primary" onclick="startDownload()" id="start-btn">⬇ Start Download</button>
+            </div>
+          </div>
+
+          <div class="card" id="dl-live-card" style="display:none;margin-top:0">
+            <div class="card-title">Live Output</div>
+            <div class="terminal" id="dl-terminal"></div>
+            <div style="margin-top:12px;display:flex;gap:10px">
+              <button class="btn btn-ghost btn-sm" onclick="clearTerminal()">Clear</button>
+              <span id="dl-status-badge" style="align-self:center"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct download (bypass search) -->
+        <div id="dl-direct" style="display:none">
+          <div class="card">
+            <div class="card-title">Direct Download by ID</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Service</label>
+                <select id="dl-direct-service">
+                  <option value="">Select a service...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Content ID / URL</label>
+                <input type="text" id="dl-direct-content" placeholder="e.g. tt1234567 or full URL" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Title label (optional)</label>
+              <input type="text" id="dl-direct-title" placeholder="Human-readable name for this job" />
+            </div>
+            <div class="form-group">
+              <label>Extra CLI args (optional)</label>
+              <input type="text" id="dl-direct-args" placeholder="e.g. -q 1080p" />
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn btn-ghost btn-sm" onclick="resetDownloadFlow()">‹ Back to Search</button>
+              <button class="btn btn-primary" onclick="startDirectDownload()">⬇ Start Download</button>
+            </div>
+          </div>
+          <div class="card" id="dl-direct-live-card" style="display:none;margin-top:0">
+            <div class="card-title">Live Output</div>
+            <div class="terminal" id="dl-direct-terminal"></div>
+            <div style="margin-top:12px;display:flex;gap:10px">
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dl-direct-terminal').innerHTML=''">Clear</button>
+              <span id="dl-direct-badge" style="align-self:center"></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── JOBS ── -->
+      <div class="page" id="page-jobs">
+        <div class="section-header">
+          <span class="section-title">All Jobs</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="loadJobs()">↻ Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearJobs('completed')">✓ Completed</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearJobs('failed')">✕ Failed</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearJobs('cancelled')">⊘ Cancelled</button>
+            <button class="btn btn-danger btn-sm" onclick="clearJobs('all')">⚠ Clear All</button>
+          </div>
+        </div>
+        <div class="job-list" id="all-jobs">
+          <div class="empty"><div class="empty-icon">≡</div>No jobs yet</div>
+        </div>
+      </div>
+
+      <!-- ── SERVICES ── -->
+      <div class="page" id="page-services">
+        <div class="section-header">
+          <span class="section-title">Services</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="loadServices()">↻ Refresh</button>
+            <button class="btn btn-primary btn-sm" onclick="openAddServiceModal()">+ Add Service</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Installed Services</div>
+          <div id="services-grid">
+            <div class="empty"><div class="empty-icon">⬡</div>No services installed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CREDENTIALS ── -->
+      <div class="page" id="page-credentials">
+        <div class="section-header">
+          <span class="section-title">Credentials</span>
+          <button class="btn btn-primary btn-sm" onclick="openCredModal()">+ Add Credential</button>
+        </div>
+        <div class="cred-list" id="cred-list">
+          <div class="empty"><div class="empty-icon">🔑</div>No credentials stored</div>
+        </div>
+      </div>
+
+      <!-- ── CONFIG ── -->
+      <div class="page" id="page-config">
+        <div class="section-header">
+          <span class="section-title">unshackle.yaml</span>
+          <button class="btn btn-primary btn-sm" onclick="saveConfig()">💾 Save Config</button>
+        </div>
+        <div class="card">
+          <div class="card-title">Configuration File</div>
+          <textarea class="config-editor" id="config-editor" spellcheck="false"></textarea>
+          <p style="margin-top:10px;font-size:11px;color:var(--muted)">
+            This file is saved to <code style="color:var(--accent)">/config/unshackle.yaml</code> and passed to unshackle on every run.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">UI Settings</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Download Path</label>
+              <input type="text" id="set-download-path" placeholder="/downloads" />
+            </div>
+            <div class="form-group">
+              <label>Concurrent Downloads</label>
+              <input type="number" id="set-concurrent" min="1" max="10" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Default Language</label>
+              <input type="text" id="set-lang" placeholder="en" />
+            </div>
+            <div class="form-group">
+              <label>Video Quality</label>
+              <input type="text" id="set-quality" placeholder="best" />
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="saveSettings()">Save UI Settings</button>
+        </div>
+      </div>
+
+      <!-- ── WVDS ── -->
+      <div class="page" id="page-wvds">
+        <div class="section-header">
+          <span class="section-title">WVD Devices</span>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('wvd-file-input').click()">+ Upload WVD</button>
+          <input type="file" id="wvd-file-input" accept=".wvd" style="display:none" onchange="uploadWvd(this)" />
+        </div>
+        <div class="card">
+          <div class="card-title">About WVDs</div>
+          <p style="font-size:12px;color:var(--muted);line-height:1.9">
+            Drop <code style="color:var(--accent)">.wvd</code> files into <code style="color:var(--accent)">./config/WVDs/</code> on the host,
+            or upload them here.<br/>
+            Set the active device in your config: <code style="color:var(--accent)">cdm: default: device_name</code> (no <code>.wvd</code> extension).
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-title">Installed Devices</div>
+          <div id="wvd-list"><div class="empty"><div class="empty-icon">🔐</div>No WVD files found</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Upload WVD</div>
+          <div class="upload-zone" id="wvd-upload-zone" onclick="document.getElementById('wvd-file-input2').click()">
+            <div class="upload-icon">⬆</div>
+            <div>Click or drag a <strong>.wvd</strong> file here</div>
+            <div style="font-size:11px;margin-top:6px;color:var(--muted)">Saved to /config/WVDs/ — restart not required</div>
+          </div>
+          <input type="file" id="wvd-file-input2" accept=".wvd" style="display:none" onchange="uploadWvd(this)" />
+        </div>
+      </div>
+
+      <!-- ── FILES ── -->
+      <div class="page" id="page-files">
+        <div class="section-header">
+          <span class="section-title">Downloaded Files</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadFiles()">↻ Refresh</button>
+        </div>
+        <div class="file-list" id="file-list">
+          <div class="empty"><div class="empty-icon">📁</div>No files yet</div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </main>
+</div>
+
+<!-- ── Modals ── -->
+
+<!-- Job Log Modal -->
+<div class="modal-overlay" id="log-modal">
+  <div class="modal" style="width:700px">
+    <div class="modal-title">Job Log — <span id="log-modal-title"></span></div>
+    <div class="terminal log-modal-term" id="log-modal-term"></div>
+    <div class="modal-actions">
+      <span id="log-modal-badge" style="align-self:center"></span>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('log-modal-term').innerHTML=''">Clear Terminal</button>
+      <button class="btn btn-danger btn-sm" id="log-cancel-btn" onclick="cancelFromModal()">✕ Cancel Job</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('log-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Service Modal -->
+<div class="modal-overlay" id="add-service-modal">
+  <div class="modal" style="width:600px">
+    <div class="modal-title">Add Service</div>
+
+    <!-- Mode tabs -->
+    <div style="display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border2);border-radius:3px;overflow:hidden">
+      <button class="svc-tab active" id="tab-zip" onclick="switchSvcTab('zip')"
+        style="flex:1;padding:9px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;cursor:pointer;transition:all .15s;background:var(--accent);color:#000">
+        ⬆ Upload ZIP
+      </button>
+      <button class="svc-tab" id="tab-git" onclick="switchSvcTab('git')"
+        style="flex:1;padding:9px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;cursor:pointer;transition:all .15s;background:var(--bg3);color:var(--muted)">
+        ⎇ Git Repo
+      </button>
+    </div>
+
+    <!-- ZIP panel -->
+    <div id="svc-panel-zip">
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('service-file-input').click()">
+        <div class="upload-icon">⬆</div>
+        <div>Click to select or drag a <strong>.zip</strong> file</div>
+        <div style="font-size:11px;margin-top:8px;color:var(--muted)">
+          Zip should contain service folder(s) at the top level.<br/>
+          e.g. <code>services.zip → MyService/ → __init__.py</code>
+        </div>
+      </div>
+      <input type="file" id="service-file-input" accept=".zip" style="display:none" onchange="uploadZip(this)" />
+    </div>
+
+    <!-- Git panel -->
+    <div id="svc-panel-git" style="display:none">
+      <div class="form-group">
+        <label>Repository URL</label>
+        <input type="text" id="git-url" placeholder="https://github.com/user/repo.git" />
+      </div>
+      <div class="form-group">
+        <label>Branch</label>
+        <input type="text" id="git-branch" value="main" placeholder="main" />
+      </div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:16px">
+        The repo will be cloned into <code style="color:var(--accent)">/services/&lt;repo-name&gt;/</code>.<br/>
+        Any service folders found inside will be available immediately.<br/>
+        You can pull updates later from the Services page.
+      </p>
+      <button class="btn btn-primary btn-sm" onclick="cloneRepo()" id="clone-btn">⎇ Clone Repository</button>
+      <div id="clone-output" style="display:none;margin-top:12px">
+        <div class="terminal" style="height:140px" id="clone-terminal"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('add-service-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Credential Modal -->
+<div class="modal-overlay" id="cred-modal">
+  <div class="modal">
+    <div class="modal-title">Add Credential</div>
+    <div class="form-group">
+      <label>Service Name</label>
+      <input type="text" id="cred-service" placeholder="e.g. NF, DSNP, AMZN" />
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="cred-type">
+        <option value="cookies">Cookies (Netscape format)</option>
+        <option value="credentials">Credentials (user:pass)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Label (optional)</label>
+      <input type="text" id="cred-label" placeholder="e.g. main account" />
+    </div>
+    <div class="form-group">
+      <label>Data</label>
+      <textarea id="cred-data" placeholder="Paste cookies or username:password here"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('cred-modal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="addCredential()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────────────
+let currentPage = 'dashboard';
+let logModalJobId = null;
+let activeSSE = null;
+
+// ── Navigation ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const page = el.dataset.page;
+    navigate(page);
+  });
+});
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === `page-${page}`));
+  const titles = { dashboard: 'Dashboard', download: 'New Download', jobs: 'Jobs', services: 'Services', credentials: 'Credentials', config: 'Configuration', wvds: 'WVD Devices', files: 'Downloads' };
+  document.getElementById('page-title').textContent = titles[page] || page;
+
+  if (page === 'dashboard')   loadDashboard();
+  if (page === 'jobs')        loadJobs();
+  if (page === 'services')    loadServices();
+  if (page === 'credentials') loadCredentials();
+  if (page === 'config')      loadConfig();
+  if (page === 'wvds')        loadWvds();
+  if (page === 'files')       loadFiles();
+  if (page === 'download')    populateServiceSelects();
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, opts);
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type]}</span>${msg}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── Modals ───────────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const jobs = await api('/jobs');
+    const stats = { total: jobs.length, running: 0, completed: 0, failed: 0 };
+    jobs.forEach(j => {
+      if (j.status === 'running') stats.running++;
+      if (j.status === 'completed') stats.completed++;
+      if (j.status === 'failed') stats.failed++;
+    });
+    document.getElementById('stat-total').textContent     = stats.total;
+    document.getElementById('stat-running').textContent   = stats.running;
+    document.getElementById('stat-completed').textContent = stats.completed;
+    document.getElementById('stat-failed').textContent    = stats.failed;
+
+    const container = document.getElementById('dashboard-jobs');
+    const recent = jobs.slice(0, 8);
+    container.innerHTML = recent.length ? recent.map(jobHtml).join('') : '<div class="empty"><div class="empty-icon">◎</div>No jobs yet</div>';
+  } catch(e) { toast('Failed to load dashboard: ' + e.message, 'error'); }
+}
+
+// ── Jobs ─────────────────────────────────────────────────────────────────────
+function jobHtml(j) {
+  const badge = `<span class="badge badge-${j.status}">${j.status === 'running' ? '<span class="spin">↻</span>' : ''} ${j.status}</span>`;
+  const date = new Date(j.created_at + 'Z').toLocaleString();
+  return `
+    <div class="job-item ${j.status}" onclick="openJobLog('${j.id}','${escHtml(j.title || j.content_id)}')">
+      <div>
+        <div class="job-title">${escHtml(j.title || j.content_id)}</div>
+        <div class="job-meta"><span class="job-service-tag">${escHtml(j.service)}</span>${escHtml(j.content_id)} · ${date}</div>
+      </div>
+      ${badge}
+      <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();cancelJob('${j.id}')">✕</button>
+    </div>`;
+}
+
+async function loadJobs() {
+  try {
+    const jobs = await api('/jobs');
+    const container = document.getElementById('all-jobs');
+    container.innerHTML = jobs.length ? jobs.map(jobHtml).join('') : '<div class="empty"><div class="empty-icon">≡</div>No jobs yet</div>';
+  } catch(e) { toast('Failed to load jobs: ' + e.message, 'error'); }
+}
+
+async function cancelJob(id) {
+  try {
+    await api(`/jobs/${id}`, { method: 'DELETE' });
+    toast('Job cancelled', 'info');
+    loadJobs();
+    loadDashboard();
+  } catch(e) { toast('Cancel failed: ' + e.message, 'error'); }
+}
+
+
+
+async function clearJobs(status) {
+  status = status || 'all';
+  const labels = { all: 'all job history', completed: 'completed jobs', failed: 'failed jobs', cancelled: 'cancelled jobs' };
+  if (!confirm('Clear ' + (labels[status] || status) + '?')) return;
+  try {
+    await api('/jobs?status=' + status, { method: 'DELETE' });
+    toast('Cleared ' + (labels[status] || status), 'info');
+    loadJobs();
+    loadDashboard();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function openJobLog(id, title) {
+  logModalJobId = id;
+  document.getElementById('log-modal-title').textContent = title;
+  document.getElementById('log-modal-term').innerHTML = '';
+  document.getElementById('log-modal-badge').innerHTML = '';
+  openModal('log-modal');
+  streamJobLog(id, 'log-modal-term', 'log-modal-badge');
+}
+
+function cancelFromModal() {
+  if (logModalJobId) cancelJob(logModalJobId);
+  closeModal('log-modal');
+}
+
+// ── Download ─────────────────────────────────────────────────────────────────
+// ── Download flow state ──────────────────────────────────────────────────────
+const dlState = {
+  service: '',
+  searchResults: [],
+  selectedResult: null,    // { title, id, year }
+  titles: [],              // episode list from --list-titles
+  selectedTitles: new Set(), // episode_ids or indexes chosen
+  rawSearch: [],
+  rawTitles: [],
+};
+
+async function populateServiceSelects() {
+  try {
+    const { services } = await api('/services');
+    const opts = '<option value="">Select a service...</option>' +
+      services.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+    document.getElementById('dl-service').innerHTML = opts;
+    document.getElementById('dl-direct-service').innerHTML = opts;
+  } catch(e) {}
+}
+// legacy alias
+function populateServiceSelect() { populateServiceSelects(); }
+
+function goToStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById(`dl-step-${i}`).style.display = i === n ? '' : 'none';
+  });
+  document.getElementById('dl-direct').style.display = 'none';
+  ['1','2','3','4'].forEach(i => {
+    const pill = document.getElementById(`step-pill-${i}`);
+    const num = parseInt(i);
+    pill.classList.toggle('active', num === n);
+    pill.classList.toggle('done', num < n);
+  });
+  if (n === 3) buildConfirmSummary();
+}
+
+function resetDownloadFlow() {
+  Object.assign(dlState, { service:'', searchResults:[], selectedResult:null,
+    titles:[], selectedTitles: new Set(), rawSearch:[], rawTitles:[] });
+  document.getElementById('dl-search-query').value = '';
+  document.getElementById('search-results-card').style.display = 'none';
+  document.getElementById('dl-live-card').style.display = 'none';
+  document.getElementById('dl-direct').style.display = 'none';
+  [1,2,3].forEach(i => document.getElementById(`dl-step-${i}`).style.display = i===1?'':'none');
+  ['1','2','3','4'].forEach(i => {
+    document.getElementById(`step-pill-${i}`).classList.remove('active','done');
+  });
+  document.getElementById('step-pill-1').classList.add('active');
+}
+
+function showDirectDownload() {
+  [1,2,3].forEach(i => document.getElementById(`dl-step-${i}`).style.display = 'none');
+  document.getElementById('dl-direct').style.display = '';
+  populateServiceSelects();
+}
+
+function toggleRaw(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ── Step 1: Search ────────────────────────────────────────────────────────────
+async function doSearch() {
+  const service = document.getElementById('dl-service').value;
+  const query   = document.getElementById('dl-search-query').value.trim();
+  if (!service) return toast('Select a service first', 'error');
+  if (!query)   return toast('Enter a search term', 'error');
+
+  dlState.service = service;
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Searching…';
+
+  try {
+    const res = await api('/search', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service, query }),
+    });
+
+    dlState.searchResults = res.results;
+    dlState.rawSearch = res.raw;
+
+    const card = document.getElementById('search-results-card');
+    const list = document.getElementById('search-results-list');
+    const title = document.getElementById('search-results-title');
+    card.style.display = '';
+
+    const rawTerm = document.getElementById('search-raw-term');
+    rawTerm.textContent = res.raw.join('\n');
+
+    if (!res.results.length) {
+      title.textContent = 'No results';
+      list.innerHTML = `<div class="empty"><div class="empty-icon">◎</div>
+        No parseable results. Check raw output below — the service may output differently.</div>`;
+      return;
+    }
+
+    title.textContent = `${res.results.length} result${res.results.length!==1?'s':''} for "${query}"`;
+    list.innerHTML = res.results.map(r => `
+      <div class="result-item" onclick="selectSearchResult(${r.index-1})">
+        <span class="result-num">${r.index}</span>
+        <div style="flex:1">
+          <div class="result-title">${escHtml(r.title)}</div>
+          ${r.year ? `<div class="result-year">${escHtml(r.year)}</div>` : ''}
+        </div>
+        ${r.id ? `<span class="result-id">${escHtml(r.id)}</span>` : ''}
+      </div>`).join('');
+
+  } catch(e) {
+    toast('Search failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Search';
+  }
+}
+
+async function selectSearchResult(idx) {
+  const result = dlState.searchResults[idx];
+  if (!result) return;
+  dlState.selectedResult = result;
+
+  // If the result has no parseable ID, use the raw line as ID
+  const itemId = result.id || result.raw;
+
+  const titleEl = document.getElementById('titles-card-title');
+  titleEl.textContent = `Loading titles for: ${result.title}…`;
+  goToStep(2);
+  document.getElementById('titles-list').innerHTML =
+    '<div class="empty"><div class="spin" style="font-size:24px">↻</div><div style="margin-top:8px">Fetching episode list…</div></div>';
+
+  try {
+    const res = await api('/list-titles', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service: dlState.service, item_id: itemId }),
+    });
+
+    dlState.titles = res.titles;
+    dlState.rawTitles = res.raw;
+    dlState.selectedTitles = new Set(res.titles.map((_, i) => i));
+
+    document.getElementById('titles-raw-term').textContent = res.raw.join('\n');
+    titleEl.textContent = `${result.title}${result.year?' ('+result.year+')':''}`;
+    renderTitleList();
+
+  } catch(e) {
+    document.getElementById('titles-list').innerHTML =
+      `<div class="empty" style="color:var(--red)">Failed to fetch titles: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderTitleList() {
+  const list = document.getElementById('titles-list');
+  const titles = dlState.titles;
+
+  if (!titles.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">◎</div>No titles found. Check raw output — you may need to enter the ID directly.</div>';
+    updateSelectionCount();
+    return;
+  }
+
+  list.innerHTML = titles.map((t, i) => `
+    <label class="ep-item">
+      <input type="checkbox" ${dlState.selectedTitles.has(i)?'checked':''} onchange="toggleEpisode(${i},this.checked)" />
+      ${t.episode_id ? `<span class="ep-id">${escHtml(t.episode_id)}</span>` : ''}
+      <span class="ep-title">${escHtml(t.title || t.raw)}</span>
+    </label>`).join('');
+
+  updateSelectionCount();
+}
+
+function toggleEpisode(i, checked) {
+  if (checked) dlState.selectedTitles.add(i);
+  else dlState.selectedTitles.delete(i);
+  updateSelectionCount();
+}
+
+function updateSelectionCount() {
+  const el = document.getElementById('selection-count');
+  const total = dlState.titles.length;
+  const sel = dlState.selectedTitles.size;
+  el.textContent = total ? `${sel} of ${total} selected` : '';
+  document.getElementById('proceed-btn').disabled = sel === 0;
+}
+
+function selectAllEpisodes()    { dlState.titles.forEach((_,i) => dlState.selectedTitles.add(i));    renderTitleList(); }
+function selectNoneEpisodes()   { dlState.selectedTitles.clear(); renderTitleList(); }
+function invertEpisodeSelection(){ dlState.titles.forEach((_,i) => dlState.selectedTitles.has(i)?dlState.selectedTitles.delete(i):dlState.selectedTitles.add(i)); renderTitleList(); }
+
+// ── Step 3: Confirm + download ────────────────────────────────────────────────
+
+function buildConfirmSummary() {
+  const r = dlState.selectedResult;
+  const sel = [...dlState.selectedTitles].sort((a,b)=>a-b);
+  const titles = dlState.titles;
+  const svcName = dlState.service;
+
+  let lines = [
+    `<strong style="color:var(--accent)">${escHtml(svcName)}</strong> · ${escHtml(r.title)}${r.year?' ('+r.year+')':''}`,
+    `<span style="color:var(--muted)">ID:</span> <code style="color:var(--purple)">${escHtml(r.id||r.raw)}</code>`,
+    `<span style="color:var(--muted)">Selected:</span> ${sel.length} title${sel.length!==1?'s':''}`,
+  ];
+
+  if (sel.length <= 10) {
+    lines.push('');
+    sel.forEach(i => {
+      const t = titles[i];
+      lines.push(`  ${t.episode_id ? '<span style="color:var(--purple)">'+escHtml(t.episode_id)+'</span> ' : ''}${escHtml(t.title||t.raw)}`);
+    });
+  }
+
+  document.getElementById('confirm-summary').innerHTML = lines.join('<br/>');
+}
+
+async function startDownload() {
+  const r = dlState.selectedResult;
+  const sel = [...dlState.selectedTitles].sort((a,b)=>a-b);
+  const titles = dlState.titles;
+  const args = document.getElementById('dl-args').value.trim();
+  const extra_args = args ? args.split(/\s+/) : [];
+  const btn = document.getElementById('start-btn');
+
+  if (!r) return toast('No title selected', 'error');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Queuing…';
+
+  // Build the list of IDs to download
+  // If we have episode IDs (S01E01 etc) pass them via -w / --wanted flag
+  // If no episode IDs, fall back to the item ID directly (movie or full series)
+  const episodeIds = sel.map(i => titles[i].episode_id).filter(Boolean);
+  const itemId = r.id || r.raw;
+
+  let jobArgs = [...extra_args];
+  if (episodeIds.length && episodeIds.length < titles.length) {
+    // Pass wanted episodes as -w S01E01,S01E02...
+    jobArgs = ['-w', episodeIds.join(','), ...extra_args];
+  }
+
+  try {
+    const res = await api('/download', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        service: dlState.service,
+        content_id: itemId,
+        title: r.title + (r.year ? ' ('+r.year+')' : ''),
+        extra_args: jobArgs,
+      }),
+    });
+
+    toast('Download queued!', 'success');
+    document.getElementById('dl-live-card').style.display = '';
+    document.getElementById('dl-terminal').innerHTML = '';
+    streamJobLog(res.job_id, 'dl-terminal', 'dl-status-badge');
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇ Start Download';
+  }
+}
+
+// ── Direct download (bypass search) ──────────────────────────────────────────
+async function startDirectDownload() {
+  const service = document.getElementById('dl-direct-service').value.trim();
+  const contentId = document.getElementById('dl-direct-content').value.trim();
+  const title = document.getElementById('dl-direct-title').value.trim();
+  const args  = document.getElementById('dl-direct-args').value.trim();
+  if (!service)   return toast('Select a service', 'error');
+  if (!contentId) return toast('Enter a content ID or URL', 'error');
+
+  const extra_args = args ? args.split(/\s+/) : [];
+  try {
+    const res = await api('/download', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service, content_id: contentId, title: title || contentId, extra_args }),
+    });
+    toast('Download started!', 'success');
+    document.getElementById('dl-direct-live-card').style.display = '';
+    document.getElementById('dl-direct-terminal').innerHTML = '';
+    streamJobLog(res.job_id, 'dl-direct-terminal', 'dl-direct-badge');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function clearTerminal() { document.getElementById('dl-terminal').innerHTML = ''; }
+
+// ── SSE Log streaming ─────────────────────────────────────────────────────────
+function streamJobLog(jobId, termId, badgeId) {
+  if (activeSSE) { activeSSE.close(); activeSSE = null; }
+  const term = document.getElementById(termId);
+  const badgeEl = document.getElementById(badgeId);
+
+  // Map of "progress slot" name → DOM element for in-place updates
+  // Each unique progress line gets its own slot so Video/Audio/Subs update independently
+  const progressSlots = {};
+
+  function appendLine(text, cls) {
+    const div = document.createElement('div');
+    div.className = 'log-line ' + (cls || '');
+    div.textContent = text;
+    term.appendChild(div);
+    term.scrollTop = term.scrollHeight;
+    return div;
+  }
+
+  function classForLine(line) {
+    const l = line.toLowerCase();
+    if (line.startsWith('$')) return 'cmd';
+    if (l.includes('error') || l.startsWith('ERROR')) return 'error';
+    if (l.includes('🎉') || l.includes('downloaded') || l.includes('finished')) return 'success';
+    return '';
+  }
+
+  function handleProgressLine(raw) {
+    // Strip ANSI from progress lines for display
+    const clean = raw.replace(/\x1b\[[0-9;]*[mGKHFJKST]?/g, '').trim();
+    if (!clean) return;
+
+    // Use first ~20 chars as the slot key (identifies Video/Audio/Subtitle track)
+    const slotKey = clean.substring(0, 30);
+    if (progressSlots[slotKey]) {
+      progressSlots[slotKey].textContent = clean;
+    } else {
+      const el = appendLine(clean, 'progress progress-line-active');
+      progressSlots[slotKey] = el;
+    }
+    term.scrollTop = term.scrollHeight;
+  }
+
+  const es = new EventSource(`/api/jobs/${jobId}/stream`);
+  activeSSE = es;
+
+  // All events are JSON objects: {type, message, task_id?, completed?, total?, speed?}
+  es.onmessage = (e) => {
+    let evt;
+    try { evt = JSON.parse(e.data); } catch { return; }
+
+    if (evt.type === 'status') {
+      const status = evt.message;
+      if (badgeEl) badgeEl.innerHTML = `<span class="badge badge-${status}">${status}</span>`;
+      if (status !== 'queued' && status !== 'running') { es.close(); activeSSE = null; }
+      return;
+    }
+
+    if (evt.type === 'progress') {
+      // In-place progress update — slot by task_id
+      const slotKey = evt.task_id || evt.message.substring(0, 30);
+      const pct = evt.total > 0 ? Math.round((evt.completed / evt.total) * 100) : 0;
+      const bar = '█'.repeat(Math.floor(pct / 5)) + '░'.repeat(20 - Math.floor(pct / 5));
+      const label = `${evt.message}  ${bar}  ${pct}%${evt.speed ? '  ' + evt.speed : ''}`;
+      if (progressSlots[slotKey]) {
+        progressSlots[slotKey].textContent = label;
+      } else {
+        progressSlots[slotKey] = appendLine(label, 'progress progress-line-active');
+      }
+      term.scrollTop = term.scrollHeight;
+      return;
+    }
+
+    if (evt.type === 'log' || evt.type === 'error') {
+      const clean = (evt.message || '').replace(/\x1b\[[0-9;]*[mGKHFJKST]?/g, '');
+      if (clean.trim()) appendLine(clean, evt.type === 'error' ? 'error' : classForLine(clean));
+    }
+  };
+
+  es.onerror = () => { es.close(); activeSSE = null; };
+}
+
+// ── Services ──────────────────────────────────────────────────────────────────
+
+function openAddServiceModal() { openModal('add-service-modal'); }
+
+function switchSvcTab(mode) {
+  document.getElementById('svc-panel-zip').style.display = mode === 'zip' ? '' : 'none';
+  document.getElementById('svc-panel-git').style.display = mode === 'git' ? '' : 'none';
+  document.getElementById('tab-zip').style.cssText += mode === 'zip'
+    ? ';background:var(--accent);color:#000' : ';background:var(--bg3);color:var(--muted)';
+  document.getElementById('tab-git').style.cssText += mode === 'git'
+    ? ';background:var(--accent);color:#000' : ';background:var(--bg3);color:var(--muted)';
+}
+
+async function loadServices() {
+  try {
+    const { services } = await api('/services');
+    const grid = document.getElementById('services-grid');
+    if (!services.length) {
+      grid.innerHTML = '<div class="empty"><div class="empty-icon">⬡</div>No services installed.<br/>Use "Add Service" to upload a zip or clone a git repo.</div>';
+      return;
+    }
+
+    // Group: git repos vs standalone
+    const rows = services.map(s => {
+      const isRepo = !!s.repo;
+      const fileList = s.files.join(', ');
+      const repoInfo = isRepo
+        ? `<div style="font-size:10px;color:var(--muted);margin-top:4px">
+             <span style="color:var(--purple)">⎇ ${escHtml(s.repo.repo_name)}</span> · ${escHtml(s.repo.url)}
+             · last pulled: ${s.repo.last_pulled ? new Date(s.repo.last_pulled+'Z').toLocaleString() : 'never'}
+           </div>`
+        : '';
+      const pullBtn = isRepo
+        ? `<button class="btn btn-ghost btn-sm" onclick="pullService('${escHtml(s.repo.repo_name)}')">⎇ Pull</button>`
+        : '';
+      return `
+        <div class="job-item" style="grid-template-columns:1fr auto">
+          <div>
+            <div class="job-title" style="color:var(--accent)">${escHtml(s.name)}</div>
+            <div class="job-meta">${escHtml(fileList)}${repoInfo}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button class="btn btn-ghost btn-sm" onclick="viewServiceSource('${escHtml(s.name)}')">View</button>
+            ${pullBtn}
+            <button class="btn btn-danger btn-sm" onclick="deleteService('${escHtml(s.name)}')">Delete</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    grid.innerHTML = `<div class="job-list">${rows}</div>`;
+  } catch(e) { toast('Failed to load services: ' + e.message, 'error'); }
+}
+
+async function uploadZip(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/api/services/upload-zip', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    toast(`Installed ${data.count} service(s): ${data.installed.join(', ')}`, 'success');
+    closeModal('add-service-modal');
+    loadServices();
+    input.value = '';
+  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+}
+
+async function cloneRepo() {
+  const url    = document.getElementById('git-url').value.trim();
+  const branch = document.getElementById('git-branch').value.trim() || 'main';
+  if (!url) return toast('Please enter a repo URL', 'error');
+
+  const btn = document.getElementById('clone-btn');
+  const outEl = document.getElementById('clone-output');
+  const term = document.getElementById('clone-terminal');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Cloning…';
+  outEl.style.display = 'block';
+  term.textContent = `$ git clone --depth 1 --branch ${branch} ${url}\n`;
+
+  try {
+    const res = await fetch('/api/services/clone', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url, branch }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+    term.textContent += `\n✓ Cloned into /services/${data.repo_name}/\n`;
+    term.textContent += `Services found: ${data.services.join(', ') || '(none detected)'}\n`;
+    term.textContent += `\n${data.message}`;
+    toast(`Cloned: ${data.repo_name}`, 'success');
+    loadServices();
+  } catch(e) {
+    term.textContent += `\n✕ ERROR: ${e.message}`;
+    toast('Clone failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⎇ Clone Repository';
+  }
+}
+
+async function pullService(name) {
+  toast(`Pulling updates for ${name}…`, 'info');
+  try {
+    const data = await api(`/services/${name}/pull`, { method: 'POST' });
+    toast(`Pull complete: ${data.output.split('\n')[0]}`, 'success');
+    loadServices();
+  } catch(e) { toast('Pull failed: ' + e.message, 'error'); }
+}
+
+async function deleteService(name) {
+  if (!confirm(`Delete service "${name}"? This will remove the folder.`)) return;
+  try {
+    await api(`/services/${name}`, { method: 'DELETE' });
+    toast(`Deleted ${name}`, 'info');
+    loadServices();
+  } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
+async function viewServiceSource(name) {
+  try {
+    const { source, files } = await api(`/services/${name}/source`);
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>${name} source</title></head><body style="background:#0a0a0a;margin:0;padding:20px"><pre style="color:#a0ffa0;font-family:monospace;font-size:12px;line-height:1.6">${escHtml(source)}</pre></body></html>`);
+    w.document.close();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// Drag and drop for upload zone (set up after modal opened)
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('upload-zone');
+  if (!zone) return;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.toLowerCase().endsWith('.zip')) {
+      const input = document.getElementById('service-file-input');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      uploadZip(input);
+    } else toast('Only .zip files accepted', 'error');
+  });
+});
+
+// ── Credentials ───────────────────────────────────────────────────────────────
+async function loadCredentials() {
+  try {
+    const creds = await api('/credentials');
+    const list = document.getElementById('cred-list');
+    if (!creds.length) {
+      list.innerHTML = '<div class="empty"><div class="empty-icon">🔑</div>No credentials stored yet</div>';
+      return;
+    }
+    list.innerHTML = creds.map(c => `
+      <div class="cred-item">
+        <span class="cred-type-badge cred-type-${c.type}">${c.type}</span>
+        <strong style="color:var(--accent)">${escHtml(c.service)}</strong>
+        <span style="color:var(--muted);flex:1">${escHtml(c.label || '')}</span>
+        <span style="font-size:11px;color:var(--muted)">${new Date(c.created_at+'Z').toLocaleDateString()}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteCred(${c.id})">Delete</button>
+      </div>`).join('');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function openCredModal() { openModal('cred-modal'); }
+
+async function addCredential() {
+  const service = document.getElementById('cred-service').value.trim();
+  const type    = document.getElementById('cred-type').value;
+  const label   = document.getElementById('cred-label').value.trim();
+  const data    = document.getElementById('cred-data').value.trim();
+  if (!service || !data) return toast('Service and data are required', 'error');
+  try {
+    await api('/credentials', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service, type, label, data }),
+    });
+    toast('Credential saved', 'success');
+    closeModal('cred-modal');
+    loadCredentials();
+    ['cred-service','cred-label','cred-data'].forEach(id => document.getElementById(id).value = '');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function deleteCred(id) {
+  if (!confirm('Delete this credential?')) return;
+  try {
+    await api(`/credentials/${id}`, { method: 'DELETE' });
+    toast('Deleted', 'info');
+    loadCredentials();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const { content } = await api('/config');
+    document.getElementById('config-editor').value = content;
+    const settings = await api('/settings');
+    document.getElementById('set-download-path').value = settings.download_path || '/downloads';
+    document.getElementById('set-concurrent').value    = settings.concurrent_downloads || '2';
+    document.getElementById('set-lang').value          = settings.default_lang || 'en';
+    document.getElementById('set-quality').value       = settings.video_quality || 'best';
+  } catch(e) { toast('Failed to load config: ' + e.message, 'error'); }
+}
+
+async function saveConfig() {
+  const content = document.getElementById('config-editor').value;
+  try {
+    await api('/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ content }),
+    });
+    toast('Config saved', 'success');
+  } catch(e) { toast('Failed to save: ' + e.message, 'error'); }
+}
+
+async function saveSettings() {
+  const settings = {
+    download_path:        document.getElementById('set-download-path').value,
+    concurrent_downloads: document.getElementById('set-concurrent').value,
+    default_lang:         document.getElementById('set-lang').value,
+    video_quality:        document.getElementById('set-quality').value,
+  };
+  try {
+    await api('/settings', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ settings }),
+    });
+    toast('Settings saved', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Files ─────────────────────────────────────────────────────────────────────
+let collapsedFolders = new Set();
+
+async function loadFiles() {
+  try {
+    const { files } = await api('/downloads');
+    const list = document.getElementById('file-list');
+    if (!files.length) {
+      list.innerHTML = '<div class="empty">No files found.</div>';
+      return;
+    }
+
+    // Build tree
+    const tree = {};
+    files.forEach(f => {
+      const parts = f.path.split('/');
+      let current = tree;
+      parts.forEach((part, i) => {
+        if (i === parts.length - 1) {
+          current[part] = f;
+        } else {
+          current[part] = current[part] || {};
+          current = current[part];
+        }
+      });
+    });
+
+    list.innerHTML = renderTree(tree);
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function renderTree(node, fullPath = '') {
+  let html = '';
+  const entries = Object.keys(node).sort((a, b) => {
+    const aIsDir = !node[a].path;
+    const bIsDir = !node[b].path;
+    if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+    return a.localeCompare(b);
+  });
+
+  entries.forEach(key => {
+    const item = node[key];
+    const currentPath = fullPath ? `${fullPath}/${key}` : key;
+    const isDir = !item.path;
+
+    if (isDir) {
+      const isCollapsed = collapsedFolders.has(currentPath);
+      html += `
+        <div class="tree-item folder ${isCollapsed ? '' : 'expanded'}" onclick="toggleFolder('${escHtml(currentPath)}')">
+          <span class="tree-toggle">▶</span>
+          <span class="tree-icon">📁</span>
+          <span class="tree-name">${escHtml(key)}</span>
+          <div class="tree-actions">
+             <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteFile('${escHtml(currentPath)}')">Delete</button>
+          </div>
+        </div>
+        <div class="tree-node ${isCollapsed ? 'collapsed' : ''}" id="folder-${currentPath}">
+          ${renderTree(item, currentPath)}
+        </div>`;
+    } else {
+      html += `
+        <div class="tree-item">
+          <span class="tree-toggle" style="opacity:0">▶</span>
+          <span class="tree-icon">📄</span>
+          <span class="tree-name">${escHtml(key)}</span>
+          <span class="tree-size">${fmtSize(item.size)}</span>
+          <div class="tree-actions">
+            <a href="/api/downloads/get/${encodeURIComponent(item.path)}" class="btn btn-primary btn-sm" download>Download</a>
+            <button class="btn btn-danger btn-sm" onclick="deleteFile('${escHtml(item.path)}')">Delete</button>
+          </div>
+        </div>`;
+    }
+  });
+  return html;
+}
+
+function toggleFolder(path) {
+  if (collapsedFolders.has(path)) collapsedFolders.delete(path);
+  else collapsedFolders.add(path);
+  loadFiles();
+}
+
+async function deleteFile(path) {
+  if (!confirm(`Are you sure you want to delete ${path}?`)) return;
+  try {
+    await api(`/downloads/${encodeURIComponent(path)}`, { method: 'DELETE' });
+    toast('Deleted successfully', 'success');
+    loadFiles();
+  } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+  return (bytes/1073741824).toFixed(2) + ' GB';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadDashboard();
+setInterval(() => { if (currentPage === 'dashboard') loadDashboard(); }, 5000);
+setInterval(() => { if (currentPage === 'jobs')      loadJobs();      }, 5000);
+
+// ── WVDs ──────────────────────────────────────────────────────────────────────
+async function loadWvds() {
+  try {
+    const { wvds } = await api('/wvds');
+    const list = document.getElementById('wvd-list');
+    if (!wvds.length) {
+      list.innerHTML = '<div class="empty"><div class="empty-icon">🔐</div>No .wvd files in /config/WVDs/</div>';
+      return;
+    }
+    list.innerHTML = wvds.map(w => `
+      <div class="file-item">
+        <span style="font-size:18px">🔐</span>
+        <span class="file-name" style="color:var(--accent)">${escHtml(w.name)}</span>
+        <span class="file-size">${fmtSize(w.size)}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteWvd('${escHtml(w.name)}')">Delete</button>
+      </div>`).join('');
+  } catch(e) { toast('Failed to load WVDs: ' + e.message, 'error'); }
+}
+
+async function uploadWvd(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.wvd')) return toast('Only .wvd files accepted', 'error');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/api/wvds/upload', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    toast(`Uploaded: ${file.name}`, 'success');
+    loadWvds();
+    input.value = '';
+  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+}
+
+async function deleteWvd(filename) {
+  if (!confirm(`Delete ${filename}?`)) return;
+  try {
+    await api(`/wvds/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    toast(`Deleted ${filename}`, 'info');
+    loadWvds();
+  } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
+// WVD drag and drop
+document.addEventListener('DOMContentLoaded', () => {
+  const wvdZone = document.getElementById('wvd-upload-zone');
+  if (wvdZone) {
+    wvdZone.addEventListener('dragover', e => { e.preventDefault(); wvdZone.classList.add('dragover'); });
+    wvdZone.addEventListener('dragleave', () => wvdZone.classList.remove('dragover'));
+    wvdZone.addEventListener('drop', e => {
+      e.preventDefault();
+      wvdZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.toLowerCase().endsWith('.wvd')) {
+        const input = document.getElementById('wvd-file-input2');
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        uploadWvd(input);
+      } else toast('Only .wvd files accepted', 'error');
+    });
+  }
+});
+
+</script>
+</body>
+</html>

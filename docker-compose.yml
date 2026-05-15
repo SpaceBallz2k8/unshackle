@@ -1,0 +1,17 @@
+services:
+  unshackle-webui:
+    build: .
+    container_name: unshackle-webui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/config          # unshackle.yaml + WVDs, Cookies, etc
+      - ./services:/services      # service .py modules
+      - ./downloads:/downloads    # completed downloads
+      - ./data:/data              # SQLite DB
+    environment:
+      - TZ=Europe/London
+      - DATABASE_URL=/data/unshackle.db
+      - UNSHACKLE_SERVICES=/services
+      - UNSHACKLE_DOWNLOADS=/downloads
