@@ -12,51 +12,13 @@ from typing import Optional
 def _load_service_class(service_name: str):
     """
     Load a service class by name from the configured services directories.
-    Mirrors what unshackle's dl command does internally.
     """
-    import importlib.util
-    import os
-    import sys
-    from pathlib import Path
-
-    services_dirs = os.environ.get("UNSHACKLE_SERVICES", "/services")
-    search_paths = [Path(p) for p in services_dirs.split(":") if p]
-
-    # Also check the XDG services dir
-    xdg_svc = Path("/root/.config/unshackle/services")
-    if xdg_svc.exists():
-        search_paths.append(xdg_svc)
-
-    for base in search_paths:
-        if not base.exists():
-            continue
-        # Service folder: base/SERVICE_NAME/__init__.py
-        folder = base / service_name / "__init__.py"
-        if folder.exists():
-            spec = importlib.util.spec_from_file_location(
-                f"services.{service_name}", folder,
-                submodule_search_locations=[str(folder.parent)]
-            )
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules[f"services.{service_name}"] = mod
-            spec.loader.exec_module(mod)
-            # The class should have the same name as the service
-            cls = getattr(mod, service_name, None)
-            if cls is None:
-                # Try to find any Service subclass
-                from unshackle.core.service import Service
-                for attr in dir(mod):
-                    obj = getattr(mod, attr)
-                    try:
-                        if isinstance(obj, type) and issubclass(obj, Service) and obj is not Service:
-                            cls = obj
-                            break
-                    except TypeError:
-                        pass
-            if cls:
-                return cls
-
-    raise ValueError(f"Service '{service_name}' not found in {search_paths}")
+    from unshackle.core.services import Services
+    tag = Services.get_tag(service_name)
+    try:
+        return Services.load(tag)
+    except KeyError:
+        raise ValueError(f"Service '{service_name}' not found")
 
 
 def _make_context(service_name: str, content_id: str):
@@ -66,24 +28,16 @@ def _make_context(service_name: str, content_id: str):
     """
     import click
     from unshackle.core.config import config as cfg
+    from unshackle.core.utils.click_types import ContextData
 
     ctx = click.Context(click.Command(service_name))
-    ctx.obj = {
-        "config": cfg,
-        "service": service_name,
-        "title": content_id,
-        # Minimal track_request to avoid AttributeError
-        "track_request": _FakeTrackRequest(),
-    }
+    ctx.obj = ContextData(
+        config=cfg,
+        cdm=None,
+        proxy_providers=[],
+        profile=None
+    )
     return ctx
-
-
-class _FakeTrackRequest:
-    codecs = []
-    ranges = []
-    wanted = None
-    lang = ["en"]
-    sub_lang = ["en"]
 
 
 async def search_service(service_name: str, query: str) -> list[dict]:

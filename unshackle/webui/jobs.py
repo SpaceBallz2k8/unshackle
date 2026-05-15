@@ -196,11 +196,10 @@ def _do_download(
 
         # We need to patch the console BEFORE the dl command instantiates
         # Patch at the module level — unshackle uses a module-level `console`
-        import unshackle.core.utilities as _utils
-        import unshackle.commands.dl as _dl_mod
+        import unshackle.core.console as _console_mod
 
-        original_console = getattr(_dl_mod, 'console', None)
-        _dl_mod.console = web_console
+        original_console = _console_mod.console
+        _console_mod.console = web_console
 
         # Also patch rich.progress.Progress so download bars come to us
         import unshackle.commands.dl as _dl_mod2
@@ -224,7 +223,7 @@ def _do_download(
 
         # Restore patches
         if original_console is not None:
-            _dl_mod.console = original_console
+            _console_mod.console = original_console
         if original_progress_cls is not None:
             _rp.Progress = original_progress_cls
 
