@@ -69,16 +69,19 @@ class JobQueue:
                 except RuntimeError:
                     pass
 
-    def log(self, msg: str):
+    def emit_log(self, msg: str):
         self._emit({"type": "log", "message": msg})
+    log = emit_log
 
-    def error(self, msg: str):
+    def emit_error(self, msg: str):
         self._emit({"type": "error", "message": msg})
+    error = emit_error
 
-    def status(self, s: str):
+    def emit_status(self, s: str):
         self._emit({"type": "status", "message": s})
+    status = emit_status
 
-    def progress(self, task_id: str, description: str, completed: float, total: float, speed: str = ""):
+    def emit_progress(self, task_id: str, description: str, completed: float, total: float, speed: str = "", elapsed: str = ""):
         self._emit({
             "type": "progress",
             "message": description,
@@ -86,7 +89,9 @@ class JobQueue:
             "completed": completed,
             "total": total,
             "speed": speed,
+            "elapsed": elapsed,
         })
+    progress = emit_progress
 
 
 def get_queue(job_id: str) -> Optional[JobQueue]:
@@ -181,7 +186,7 @@ async def _run_job(job_id: str, service: str, content_id: str, extra_args: list)
     final = "failed"
     while True:
         try:
-            evt = await asyncio.wait_for(status_sub.get(), timeout=600.0)
+            evt = await asyncio.wait_for(status_sub.get(), timeout=2.0)
             if evt["type"] == "status" and evt["message"] not in ("queued", "running"):
                 final = evt["message"]
                 break
