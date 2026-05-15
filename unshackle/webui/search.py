@@ -72,7 +72,8 @@ def _instantiate_service(service_tag: str, title_id: str):
     ctx = _build_context(service_tag, title_id)
 
     # Instantiate — Service.__init__ does geofence check etc.
-    instance = service_cls(ctx)
+    # Pass title as kwarg — all services have __init__(self, ctx, title: str)
+    instance = service_cls(ctx, title=title_id)
 
     # Authenticate (load cookies + credentials from config)
     cookies = dl.get_cookie_jar(service_tag, None)
