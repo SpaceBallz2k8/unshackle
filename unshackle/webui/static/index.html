@@ -1190,15 +1190,26 @@ async function doSearch() {
     }
 
     title.textContent = `${res.results.length} result${res.results.length!==1?'s':''} for "${query}"`;
-    list.innerHTML = res.results.map(r => `
-      <div class="result-item" onclick="selectSearchResult(${r.index-1})">
-        <span class="result-num">${r.index}</span>
-        <div style="flex:1">
-          <div class="result-title">${escHtml(r.title)}</div>
-          ${r.year ? `<div class="result-year">${escHtml(r.year)}</div>` : ''}
-        </div>
-        ${r.id ? `<span class="result-id">${escHtml(r.id)}</span>` : ''}
-      </div>`).join('');
+    list.innerHTML = '';
+    res.results.forEach((r, i) => {
+      const div = document.createElement('div');
+      div.className = 'result-item';
+      div.onclick = () => selectSearchResult(i);
+      const clean = (v) => (!v || v === 'undefined' || v === 'None') ? '' : String(v);
+      const year = clean(r.year);
+      const desc = clean(r.description);
+      const label = clean(r.label);
+      div.innerHTML =
+        '<span class="result-num">' + (i+1) + '</span>' +
+        '<div style="flex:1">' +
+          '<div class="result-title">' + escHtml(r.title || '') + '</div>' +
+          (year  ? '<div class="result-year">' + escHtml(year) + '</div>' : '') +
+          (desc  ? '<div class="result-year">' + escHtml(desc) + '</div>' : '') +
+          (label ? '<div class="result-year" style="color:var(--purple)">' + escHtml(label) + '</div>' : '') +
+        '</div>' +
+        (r.id ? '<span class="result-id">' + escHtml(String(r.id)) + '</span>' : '');
+      list.appendChild(div);
+    });
 
   } catch(e) {
     toast('Search failed: ' + e.message, 'error');

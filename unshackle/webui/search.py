@@ -95,8 +95,8 @@ async def search_service(service_tag: str, query: str) -> list[dict]:
         results = []
         for r in instance.search():
             results.append({
-                "id": str(r.id),
-                "title": r.title,
+                "id": str(r.id) if r.id is not None else "",
+                "title": r.title or "",
                 "description": r.description or "",
                 "label": r.label or "",
                 "url": r.url or "",
