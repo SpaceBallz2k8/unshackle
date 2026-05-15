@@ -205,20 +205,20 @@ async def stream_job(job_id: str):
         try:
             while True:
                 try:
-                    evt: WebEvent = await asyncio.wait_for(sub.get(), timeout=30.0)
+                    evt = await asyncio.wait_for(sub.get(), timeout=30.0)
                     payload = {
-                        "type": evt.type,
-                        "message": evt.message,
+                        "type": evt["type"],
+                        "message": evt.get("message", ""),
                     }
-                    if evt.type == "progress":
+                    if evt["type"] == "progress":
                         payload.update({
-                            "task_id": evt.task_id,
-                            "completed": evt.completed,
-                            "total": evt.total,
-                            "speed": evt.speed,
+                            "task_id": evt.get("task_id"),
+                            "completed": evt.get("completed", 0),
+                            "total": evt.get("total", 0),
+                            "speed": evt.get("speed", ""),
                         })
                     yield "data: {}\n\n".format(json.dumps(payload))
-                    if evt.type == "status" and evt.message not in ("queued", "running"):
+                    if evt["type"] == "status" and evt.get("message") not in ("queued", "running"):
                         break
                 except asyncio.TimeoutError:
                     yield ": keepalive\n\n"

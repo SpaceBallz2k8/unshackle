@@ -143,17 +143,21 @@ async def _run_job(job_id: str, service: str, content_id: str, extra_args: list)
     persist_done = asyncio.Event()
 
     async def _persist():
-        while True:
-            try:
-                evt = await asyncio.wait_for(log_sub.get(), timeout=2.0)
-                if evt["type"] in ("log", "error"):
-                    await _db_append_log(job_id, evt["message"])
-                if evt["type"] == "status" and evt["message"] not in ("queued", "running"):
-                    break
-            except asyncio.TimeoutError:
-                if not _running.get(job_id):
-                    break
-        persist_done.set()
+        try:
+            while True:
+                try:
+                    evt = await asyncio.wait_for(log_sub.get(), timeout=2.0)
+                    if evt["type"] in ("log", "error"):
+                        await _db_append_log(job_id, evt["message"])
+                    if evt["type"] == "status" and evt["message"] not in ("queued", "running"):
+                        break
+                except asyncio.TimeoutError:
+                    if not _running.get(job_id):
+                        break
+        except Exception as e:
+            log.error(f"Persistence error for job {job_id}: {e}")
+        finally:
+            persist_done.set()
 
     persist_task = asyncio.create_task(_persist())
 
@@ -199,7 +203,7 @@ def _do_download(job_id: str, service: str, content_id: str, extra_args: list, q
     from click.testing import CliRunner
     from unshackle.core.__main__ import main
 
-    q.log(f"$ unshackle dl {service} {content_id} {' '.join(extra_args)}")
+    q.log(f"$ unshackle dl {' '.join(extra_args)} {service} {content_id}")
 
     # Use a pipe to get streaming output
     r_fd, w_fd = None, None
