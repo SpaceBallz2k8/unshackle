@@ -223,7 +223,7 @@ def _do_download(job_id: str, service: str, content_id: str, extra_args: list, q
         reader_thread = threading.Thread(target=_reader, daemon=True)
         reader_thread.start()
 
-        runner = CliRunner(mix_stderr=True)
+        runner = CliRunner()
         args = ["dl", service, content_id] + extra_args
 
         result = runner.invoke(
