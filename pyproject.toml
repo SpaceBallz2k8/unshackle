@@ -68,8 +68,10 @@ dependencies = [
     "language-data>=1.4.0",
     "wasmtime>=41.0.0",
     "animeapi-py>=0.6.0",
-    "fastapi",
-    "uvicorn"
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "aiosqlite>=0.20.0",
+    "python-multipart>=0.0.9"
 ]
 
 [project.urls]
