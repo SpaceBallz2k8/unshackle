@@ -1173,6 +1173,7 @@ async function doSearch() {
 
     dlState.searchResults = res.results;
     dlState.rawSearch = res.raw;
+    console.log('API search response:', JSON.stringify(res, null, 2));
 
     const card = document.getElementById('search-results-card');
     const list = document.getElementById('search-results-list');
@@ -1220,8 +1221,9 @@ async function doSearch() {
 }
 
 async function selectSearchResult(idx) {
+  console.log('selectSearchResult called with idx:', idx, 'results:', dlState.searchResults);
   const result = dlState.searchResults[idx];
-  if (!result) return;
+  if (!result) { console.error('No result at idx', idx); return; }
   dlState.selectedResult = result;
 
   // If the result has no parseable ID, use the raw line as ID
